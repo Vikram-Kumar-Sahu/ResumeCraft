@@ -155,7 +155,9 @@ router.post("/:id/download", async (req, res, next) => {
     });
     if (!resume) return res.status(404).json({ error: "Resume not found." });
 
+    // latex -> pdf blob
     const latex = generateLatex(resume.toObject(), { isPro: user.isPro });
+    // blob -> downloable pdf
     const pdf = await compileToPDF(latex);
 
     const updatedUser = await User.findOneAndUpdate(

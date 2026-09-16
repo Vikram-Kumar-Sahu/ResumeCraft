@@ -47,28 +47,40 @@ const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openrouter/free";
 // fragment (persona + relevant keyword bank) built by domainPromptContext.
 // Falls through to "" for unknown/missing domains, so requests from
 // older clients that don't send a domain still work exactly as before.
+
+// Introducing Summary Structure to make Generations more deterministic
+const SUMMARY_STRUCTURE = `
+Structure:
+1. Achievement opener — one quantified achievement, credential, or strong claim ("Built X used by Y", "3x founder", "Top 1% on X platform")
+2. Role stack — 2-4 roles/identities, comma-separated, ordered by relevance
+3. Interest triplet — exactly 3 specific interests that imply values, not just skills
+
+Style:
+- Name the actual activity, not the category ("CTF player" not "cybersecurity enthusiast")
+- Triplet rhythm — two feels thin, four feels like a list
+- Interests should imply values without stating them
+- ATS-optimized: include domain-relevant keywords naturally
+- 3-4 sentences total
+- Never use: "results-driven", "self-starter", "passionate about", "dynamic", "detail-oriented"
+`
+// More Grounded, Uniform Prompting.
+
 const PROMPTS = {
   improve_summary: ({ content, jobTitle, domain }) => `
 You are an expert resume writer. Improve this professional summary for a ${jobTitle || "professional"}.
 ${domainPromptContext(domain)}
-Requirements:
-- 3-4 sentences maximum
-- Start with a strong action word or impressive credential
-- Include relevant skills and value proposition
-- ATS-optimized with keywords
-- Do NOT use generic phrases like "results-driven" or "self-starter"
+${SUMMARY_STRUCTURE}
+If no strong metric exists, open with a credential or recognition instead.
 Return ONLY the improved summary text, nothing else.
 
 ORIGINAL: ${content}`,
 
   generate_summary: ({ content, jobTitle, domain }) => `
-You are an expert resume writer. Write a compelling professional summary for a ${jobTitle || "professional"}.
+You are an expert resume writer. Write a professional summary for a ${jobTitle || "professional"}.
 ${domainPromptContext(domain)}
+${SUMMARY_STRUCTURE}
 Based on their experience: ${content}
-Requirements:
-- 3-4 sentences
-- Specific and impressive
-- ATS-friendly
+If no strong metric exists, open with a credential or recognition instead.
 Return ONLY the summary text, nothing else.`,
 
   improve_bullets: ({ content, domain }) => `
@@ -99,7 +111,7 @@ Return ONLY the bullets, one per line starting with dash (-). No other text.`,
 You are an expert resume writer. Tailor this resume content to match the job description.
 ${domainPromptContext(domain)}
 - Identify and incorporate keywords from the job description naturally
-- Reframe experience to match the role's requirements  
+- Reframe experience to match the role's requirements
 - Keep all facts truthful, just reframed
 Return ONLY the tailored content, no explanations.
 
@@ -120,6 +132,81 @@ No markdown, no explanation, pure JSON only.
 
 CURRENT SKILLS: ${content}`,
 };
+
+// const PROMPTS = {
+//   improve_summary: ({ content, jobTitle, domain }) => `
+// You are an expert resume writer. Improve this professional summary for a ${jobTitle || "professional"}.
+// ${domainPromptContext(domain)}
+// Requirements:
+// - 3-4 sentences maximum
+// - Start with a strong action word or impressive credential
+// - Include relevant skills and value proposition
+// - ATS-optimized with keywords
+// - Do NOT use generic phrases like "results-driven" or "self-starter"
+// Return ONLY the improved summary text, nothing else.
+
+// ORIGINAL: ${content}`,
+
+//   generate_summary: ({ content, jobTitle, domain }) => `
+// You are an expert resume writer. Write a compelling professional summary for a ${jobTitle || "professional"}.
+// ${domainPromptContext(domain)}
+// Based on their experience: ${content}
+// To better enhance grounding, refer to ${context_prompts} to identify the sentence structure, framing and vocabulary used to convey one's identiy. Use only the ideas and not the explicit content.
+// Requirements:
+// - 3-4 sentences
+// - Specific and impressive
+// - ATS-friendly
+// Return ONLY the summary text, nothing else.`,
+
+//   improve_bullets: ({ content, domain }) => `
+// You are an expert resume writer. Transform these job description points into powerful resume bullets.
+// ${domainPromptContext(domain)}
+// Rules:
+// - Start each with a strong action verb (Led, Built, Engineered, Increased, Reduced, etc.)
+// - Add quantifiable metrics where reasonable (%, $, numbers, time)
+// - Keep each bullet under 20 words
+// - Make them ATS-friendly
+// Return ONLY the bullets, one per line, each starting with a dash (-). No other text.
+
+// ORIGINAL:
+// ${content}`,
+
+//   generate_bullets: ({ content, jobTitle, domain }) => `
+// You are an expert resume writer. Generate 4-5 strong resume bullet points for this role.
+// ${domainPromptContext(domain)}
+// Position: ${jobTitle || "the role"}
+// Details: ${content}
+// Rules:
+// - Strong action verbs
+// - Include realistic metrics
+// - ATS-optimized
+// Return ONLY the bullets, one per line starting with dash (-). No other text.`,
+
+//   tailor_to_job: ({ content, context, domain }) => `
+// You are an expert resume writer. Tailor this resume content to match the job description.
+// ${domainPromptContext(domain)}
+// - Identify and incorporate keywords from the job description naturally
+// - Reframe experience to match the role's requirements  
+// - Keep all facts truthful, just reframed
+// Return ONLY the tailored content, no explanations.
+
+// JOB DESCRIPTION:
+// ${context}
+
+// RESUME CONTENT:
+// ${content}`,
+
+//   improve_skills: ({ content, domain }) => `
+// You are an expert resume writer. Review and optimize this skills section.
+// ${domainPromptContext(domain)}
+// - Group skills logically by category
+// - Add relevant industry-standard skills that complement existing ones
+// - Remove redundant or outdated skills
+// Return ONLY a JSON array like: [{"category": "Programming", "items": ["Python", "JavaScript"]}]
+// No markdown, no explanation, pure JSON only.
+
+// CURRENT SKILLS: ${content}`,
+// };
 
 // ── POST /api/ai/generate ──────────────────────────────────────
 router.post("/generate", async (req, res, next) => {
